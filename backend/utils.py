@@ -15,6 +15,10 @@ from dotenv import load_dotenv
 # Ensure the .env file is loaded as early as possible.
 load_dotenv(override=False)
 
+# Configure Langfuse callbacks for LiteLLM
+litellm.success_callback = ["langfuse"]
+litellm.failure_callback = ["langfuse"]
+
 # --- Constants -------------------------------------------------------------------
 
 SYSTEM_PROMPT: Final[str] = (
@@ -33,7 +37,7 @@ MODEL_NAME: Final[str] = os.environ.get("MODEL_NAME", "gpt-4o-mini")
 
 # --- Agent wrapper ---------------------------------------------------------------
 
-def get_agent_response(messages: List[Dict[str, str]]) -> List[Dict[str, str]]:  # noqa: WPS231
+def get_agent_response(messages: List[Dict[str, str]], metadata: Dict[str, str] = None) -> List[Dict[str, str]]:  # noqa: WPS231
     """Call the underlying large-language model via *litellm*.
 
     Parameters
@@ -56,9 +60,26 @@ def get_agent_response(messages: List[Dict[str, str]]) -> List[Dict[str, str]]: 
     else:
         current_messages = messages
 
+    # Get user query for metadata (last user message)
+    user_query = ""
+    for msg in reversed(current_messages):
+        if msg["role"] == "user":
+            user_query = msg["content"][:20]
+            break
+
+    # Prepare metadata for LiteLLM
+    llm_metadata = {
+        "trace_name": f"Query: {user_query}"
+    }
+
+    # Add any additional metadata passed from caller
+    if metadata:
+        llm_metadata.update(metadata)
+
     completion = litellm.completion(
         model=MODEL_NAME,
         messages=current_messages, # Pass the full history
+        metadata=llm_metadata
     )
 
     assistant_reply_content: str = (

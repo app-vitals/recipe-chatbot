@@ -2,6 +2,7 @@ fastapi
 uvicorn
 litellm
 python-dotenv
+langfuse==2.60.8
 httpx
 rich
 pandas
